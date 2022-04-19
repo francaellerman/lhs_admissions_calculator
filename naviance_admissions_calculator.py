@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 import pickle
 import statsmodels
 from statsmodels import api as sm
+import scipy
 
 start = ''
 
@@ -42,8 +43,9 @@ def html_to_pickles(moniker):
     pickle_filepath = os.path.join(start, 'df_files', pickle_filename)
     with open(pickle_filepath, 'wb') as f:
         pickle.dump(df, f)
+    rate = (0.0 + len(df[df['accepted']==0]))/len(df)
     model_filepath = os.path.join(start, 'model_files', pickle_filename)
-    college_info = {'coefs': make_model(df), 'recently_accepted': recently_accepted(soup)} 
+    college_info = {'coefs': make_model(df), 'rate_change_p': rate_change_p(soup, rate)} 
     with open(model_filepath, 'wb') as f:
         pickle.dump(college_info, f)
 
@@ -149,14 +151,28 @@ def make_model(df):
     if len(new_coefs) < 2: coefs = make_coefs(new_coefs)
     return coefs
 
-def recently_accepted(soup):
+def remove_latest_year(soup):
+    #The first of this class to show up is the leftmost bar, the latest year
+    latest_year = soup.find('div', class_='multibar-block-container')
+    latest_year.decompose()
+
+def rate_change_p(soup, rate):
+    '''
+    Returns p-value for whether the rate has changed
+    '''
+    remove_latest_year(soup)
     acceptances = 0
-    graph = soup.find('div', class_='plot-area')
-    for year in graph.find_all('div'):
-        if len(year.find_all('div',
-            class_='multibar-bar-block-container')) > 1:
-            return True
-    return False
+    applicants = 0
+    stats = soup.find_all('div', class_='multibar-bar-block-label')
+    def num(string):
+        return int(string[:string.find(' ')])
+    for stat in stats:
+        stat = stat.text
+        if stat.endswith(' Accepted'): acceptances += num(stat)
+        elif stat.endswith(' Applied'): applicants += num(stat)
+    cdf = scipy.stats.binom.cdf(acceptances, applicants, rate)
+    if cdf > 0.5: cdf = 1 - cdf
+    return cdf
 
 def make_model_complex_ver(df):
     logit_mod = sm.Logit(df['accepted'],
@@ -211,7 +227,28 @@ def get_college_names():
 def update_pickles():
     for filename in os.listdir(os.path.join(start, 'html_files')):
         html_to_pickles(filename[:-5])
-        print(filename, 'done')
+        print(filename, 'done') 
+
+def update_to_rate_change_p(moniker):
+    with open(os.path.join(start, 'df_files', moniker+'.pickle'), 'rb') as f:
+        df = pickle.load(f)
+    rate = (0.0 + len(df[df['accepted']==1]))/len(df)
+    with open(os.path.join(start, 'html_files', moniker + '.html')) as f:
+        soup = BeautifulSoup(f, features='lxml')
+    p = rate_change_p(soup, rate)
+    with open(os.path.join(start, 'model_files', moniker+'.pickle'), 'rb') as f:
+        old = pickle.load(f)
+    if old.get('recently_accepted'):
+        old.pop('recently_accepted')
+    old['rate_change_p'] = p
+    with open(os.path.join(start, 'model_files', moniker+'.pickle', 'wb') as f:
+        pickle.dump(old, f)
+
+def mass_update_to_rate_change_p():
+    for filename in os.listdir(os.path.join(start, 'model_files')):
+        print(filename[:-16])
+        moniker = filename[:-7]
+        update_to_rate_change_p(moniker)
 
 def predict(college, stats):
     college = college.replace(' ','_')

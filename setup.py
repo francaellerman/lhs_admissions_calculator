@@ -6,5 +6,6 @@ setup(name='naviance_admissions_calculator',
           'numpy',
           'pandas',
           'bs4',
-          'statsmodels']
+          'statsmodels',
+          'scipy']
       )
