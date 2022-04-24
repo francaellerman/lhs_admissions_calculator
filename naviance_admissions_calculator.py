@@ -222,6 +222,8 @@ def predict(college, stats):
         if param == 'const':
             log_odds += value
             continue
+        #If stat should not be considered, it should not be present in stats or
+        #should have a value of None in stats
         stat = stats.get(param)
         if stat:
             log_odds += value*stat
@@ -248,95 +250,7 @@ def all_college_predictions(sat, gpa):
         ddf['recently_accepted'].append(college_info['recently_accepted'])
     return pd.DataFrame(ddf).set_index('name')
 
-def accepted_df():
-    df = make_df()
-    accepted_groups = [str(x) for x in range(0,6)]
-    accepted_df = df[df['group_num'].isin(accepted_groups)]
-    return accepted_df
-
-def block_maker(df, col, increment):
-    return numpy.arange(df[col].min(),df[col].max(),increment)
-
-def blocked_chances(df, col, increment):
-    #bunches = [x*bunch_num for x in range(int(math.ceil(len(df)/int(bunch_num))))]
-    blocks = block_maker(df, col, increment)
-    chances = {col:[], 'accepted':[]}
-    for bunch_start in blocks:
-        #bunch = df.loc[bunch_start:bunch_start + bunch_num]
-        bunch = df[(df[col]>=bunch_start)&(df[col]<bunch_start+increment)]
-        if len(bunch) > 0:
-            chances[col].append(bunch[col].mean())
-            chances['accepted'].append(bunch['accepted'].mean())
-    return chances
-
-def avgs(df, col, increment):
-    blocks = block_maker(df, col, increment)
-    averages = []
-    for bunch_start in blocks:
-        bunch = df[(df[col]>=bunch_start)&(df[col]<bunch_start+increment)]
-        if len(bunch) > 0:
-            averages.append(bunch[col].mean())
-        else:
-            averages.append(numpy.NaN)
-    return averages
-
-def blocked_2d_chances(df, sat_increment, gpa_increment):
-    sat_blocks = block_maker(df, 'SAT', sat_increment)
-    gpa_blocks = block_maker(df, 'GPA', gpa_increment)
-    #gpa_avgs = numpy.empty_like(gpa_blocks)
-    #for blocks, avgs in (sat_blocks, sat_avgs), (gpa_blocks, gpa_avgs):
-    #    for index, start in enumerate(blocks):
-    #        bunch = df[
-    chances = numpy.empty([len(sat_blocks),len(gpa_blocks)])
-    chances[:] = numpy.NaN
-    for sat_index, sat_bunch_start in enumerate(sat_blocks):
-        for gpa_index, gpa_bunch_start in enumerate(gpa_blocks):
-            bunch = df[(df['SAT']>=sat_bunch_start)
-                    &(df['SAT']<sat_bunch_start+sat_increment)
-                    &(df['GPA']>=gpa_bunch_start)
-                    &(df['GPA']<gpa_bunch_start+gpa_increment)]
-            if len(bunch) > 0:
-                chances[sat_index,gpa_index] = bunch['accepted'].mean()
-    return chances
-
-def blocked_2d_totals(df, sat_increment, gpa_increment):
-    sat_blocks = block_maker(df, 'SAT', sat_increment)
-    gpa_blocks = block_maker(df, 'GPA', gpa_increment)
-    #gpa_avgs = numpy.empty_like(gpa_blocks)
-    #for blocks, avgs in (sat_blocks, sat_avgs), (gpa_blocks, gpa_avgs):
-    #    for index, start in enumerate(blocks):
-    #        bunch = df[
-    chances = numpy.empty([len(sat_blocks),len(gpa_blocks)])
-    chances[:] = numpy.NaN
-    for sat_index, sat_bunch_start in enumerate(sat_blocks):
-        for gpa_index, gpa_bunch_start in enumerate(gpa_blocks):
-            bunch = df[(df['SAT']>=sat_bunch_start)
-                    &(df['SAT']<sat_bunch_start+sat_increment)
-                    &(df['GPA']>=gpa_bunch_start)
-                    &(df['GPA']<gpa_bunch_start+gpa_increment)]
-            chances[sat_index,gpa_index] = len(bunch)
-    return chances
-
-def predicted_blocks(df, sat_increment, gpa_increment, logit_res_func):
-    sat_avgs = avgs(df, 'SAT', sat_increment)
-    gpa_avgs = avgs(df, 'GPA', gpa_increment)
-    chances = numpy.empty([len(sat_avgs),len(gpa_avgs)])
-    chances[:] = numpy.NaN
-    for s_i, sat in enumerate(sat_avgs):
-        for g_i, gpa in enumerate(gpa_avgs):
-            pred = logit_res_func(sat, gpa)
-            #pred = logit_res.predict(pd.DataFrame({'const': 1.0, 'SAT': [sat],
-            #    'GPA': [gpa]}))
-            chances[s_i, g_i] = pred
-    return chances
-
-def check_avg():
-    df = accepted_df()
-    print('SAT', df['SAT'].mean())
-    print('GPA', df['GPA'].mean())
-
-def main():
-    pass
-
-if __name__ == '__main__':
-    main()
+def act_to_sat(act):
+    #From PrepScholar data
+    z_score = (float(act) - 20.8)/5.8
+    return 1060 + 217 * z_score
