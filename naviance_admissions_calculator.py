@@ -33,6 +33,7 @@ def paste_college_html():
     return moniker
 
 def html_to_pickles(moniker):
+    #Moniker is college name AND date
     html_filename = moniker + '.html'
     html_filepath = os.path.join(start, 'html_files', html_filename)
     with open(html_filepath) as f:
@@ -51,8 +52,10 @@ def paste_college():
     html_to_pickles(paste_college_html())
 
 def make_df(soup):
+    #All the types of acceptances
     accepted_groups = [str(x) for x in range(0,6)]
-    denied_groups = [str(x) for x in range(9,15)]
+    #Rejections AND waitlists/deferals
+    denied_groups = [str(x) for x in range(6,15)]
     df = pd.DataFrame(columns=['group_num','point_num','x','y','SAT','GPA'
         ,'accepted'])
     df = df.astype({'group_num': str, 'point_num': str, 'x': float, 'y': float,
@@ -70,6 +73,8 @@ def make_df(soup):
     for group in groups:
         #class="nv-group nv-series-#"
         group_num = group['class'][1][10:]
+        #Getting rid of the Early Decisions
+        if int(group_num) % 3 == 1: continue
         if group_num in accepted_groups: accepted = 1
         elif group_num in denied_groups: accepted = 0
         else: continue
@@ -208,6 +213,14 @@ def get_college_names():
         colleges.append(file[:-16])
     return colleges
 
+def get_college_names_and_dates():
+    colleges = []
+    loc, files = file_stuff('model_files')
+    for file in files:
+        #Get just the college name
+        colleges.append(file[:-14])
+    return colleges
+
 def update_pickles():
     for filename in os.listdir(os.path.join(start, 'html_files')):
         html_to_pickles(filename[:-5])
@@ -254,3 +267,27 @@ def act_to_sat(act):
     #From PrepScholar data
     z_score = (float(act) - 20.8)/5.8
     return 1060 + 217 * z_score
+
+def remove_latest_year(soup):
+    #Remove the first year's bar in bar graph
+    soup.find('div', class_='multibar-block-container').decompose()
+
+def plot_area_stats(moniker):
+    soup = get_college(moniker, 'html_files')
+    remove_latest_year(soup)
+    d = {'Applied': 0, 'Accepted': 0, 'Enrolled': 0}
+    stats = soup.find_all('div', class_='multibar-bar-block-label')
+    def num(string):
+        return int(string[:string.find(' ')])
+    if stats:
+        for stat in stats:
+            stat = stat.text
+            d[stat[stat.find(' ') + 1:]] += num(stat)
+    return d
+
+def enrollment_rate(moniker):
+    d = plot_area_stats(moniker)
+    if d['Accepted'] > 0:
+        return (0.0 + d['Enrolled'])/d['Accepted']
+    else:
+        return math.nan
