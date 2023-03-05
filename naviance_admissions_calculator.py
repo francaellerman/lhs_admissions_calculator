@@ -52,10 +52,10 @@ def paste_college():
     html_to_pickles(paste_college_html())
 
 def make_df(soup):
-    #All the types of acceptances
-    accepted_groups = [str(x) for x in range(0,6)]
-    #Rejections AND waitlists/deferals
-    denied_groups = [str(x) for x in range(6,15)]
+    #Regular, ED, and EA acceptances (as of changing this code, all models were made before changing this code so they still count acceptances off the waitlist as acceptances)
+    accepted_groups = [str(x) for x in range(0,3)]
+    #Rejections, waitlists (including acceptances off the waitlist)
+    denied_groups = [str(x) for x in range(3,15)]
     df = pd.DataFrame(columns=['group_num','point_num','x','y','SAT','GPA'
         ,'accepted'])
     df = df.astype({'group_num': str, 'point_num': str, 'x': float, 'y': float,
@@ -82,8 +82,9 @@ def make_df(soup):
             #class="nv-point nv-point-#"
             point_num = point['class'][1][9:]
             transform = get_coordinates(point)
-            df = df.append({'group_num':group_num,'point_num':point_num,
-                'x': transform['x'], 'y': transform['y'], 'accepted':accepted},
+            df = pd.concat([df, pd.DataFrame({'group_num':[group_num],
+                'point_num':[point_num], 'x': [transform['x']],
+                'y': [transform['y']], 'accepted':[accepted]})],
                 ignore_index=True)
     df = remove_duplicates(df)
     def get_line(extremum, axis):
@@ -106,6 +107,7 @@ def make_df(soup):
         df.loc[index,'SAT'] = SAT(df.loc[index,'x'])
         df.loc[index,'GPA'] = GPA(df.loc[index,'y'])
     return df
+
 
 def remove_duplicates(df):
     df = df.copy()
@@ -142,7 +144,7 @@ def make_model(df):
         logit_mod = sm.Logit(df['accepted'],
                 statsmodels.tools.add_constant(df[coefs]))
         nonlocal logit_res
-        logit_res = logit_mod.fit()
+        logit_res = logit_mod.fit(disp=0)
         return logit_res.params
     coefs = make_coefs(['SAT', 'GPA'])
     new_coefs = []
